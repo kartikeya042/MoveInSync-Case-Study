@@ -1,9 +1,12 @@
-const express = require('express');
-const mongoose = require('mongoose');
-require('dotenv').config();
+import express from 'express';
+import mongoose from 'mongoose';
+import 'dotenv/config';
+import alertRoutes from './routes/alertRoutes.js';
 
 const app = express();
 app.use(express.json());
+
+app.use('/api/alerts', alertRoutes);
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/alert-escalation';
@@ -21,4 +24,4 @@ mongoose
     process.exit(1); // no db, no point running
   });
 
-module.exports = app;
+export default app;
