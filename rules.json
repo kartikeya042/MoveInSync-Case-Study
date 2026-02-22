@@ -3,5 +3,12 @@
     "escalate_if_count": 3,
     "window_mins": 60,
     "auto_close_mins": 120
+  },
+  "feedback_negative": {
+    "escalate_if_count": 2,
+    "window_mins": 1440
+  },
+  "compliance": {
+    "auto_close_if": "document_valid"
   }
 }

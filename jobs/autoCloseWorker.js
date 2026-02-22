@@ -22,13 +22,30 @@ const runAutoClose = async () => {
     const rule = rules[candidate.sourceType];
 
     // no policy for this sourceType — don't make assumptions about when it should close
-    if (!rule || !rule.auto_close_mins) continue;
+    if (!rule) continue;
 
-    const thresholdMs = rule.auto_close_mins * 60 * 1000;
-    const ageMs = now - new Date(candidate.timestamp).getTime();
+    let shouldClose = false;
+    let closureNote = '';
 
-    // hasn't been open long enough yet
-    if (ageMs < thresholdMs) continue;
+    if (rule.auto_close_mins) {
+      const thresholdMs = rule.auto_close_mins * 60 * 1000;
+      const ageMs = now - new Date(candidate.timestamp).getTime();
+
+      if (ageMs >= thresholdMs) {
+        shouldClose = true;
+        closureNote = `auto-closed after ${rule.auto_close_mins} mins with no resolution`;
+      }
+    } else if (rule.auto_close_if) {
+      // metadata-based close — the rule says which key to check, so we don't hardcode "document_valid" here;
+      // any future compliance-style rule just needs a new auto_close_if entry in the json
+      const metaKey = rule.auto_close_if;
+      if (candidate.metadata?.[metaKey] === true) {
+        shouldClose = true;
+        closureNote = `auto-closed because ${metaKey} is true`;
+      }
+    }
+
+    if (!shouldClose) continue;
 
     // atomic filter on status in the update itself — if two cron ticks overlap (e.g. slow db),
     // the second findOneAndUpdate finds no matching doc because the first already flipped it to AUTO-CLOSED
@@ -38,7 +55,7 @@ const runAutoClose = async () => {
         $set: {
           status: 'AUTO-CLOSED',
           'metadata.closedAt': new Date(),
-          'metadata.closureNote': `auto-closed after ${rule.auto_close_mins} mins with no resolution`,
+          'metadata.closureNote': closureNote,
         },
       },
       { returnDocument: 'after' }
@@ -46,7 +63,7 @@ const runAutoClose = async () => {
 
     // updated is null if another tick already closed this one — nothing to log
     if (updated) {
-      console.log(`auto-closed alert ${updated.alertid} (age: ${Math.round(ageMs / 60000)} mins)`);
+      console.log(`auto-closed alert ${updated.alertid} — ${closureNote}`);
     }
   }
 };

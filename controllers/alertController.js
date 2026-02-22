@@ -1,5 +1,5 @@
 import Alert from '../models/Alert.js';
-import { overspeedEngine } from '../services/RuleEngine.js';
+import { registry } from '../services/RuleEngine.js';
 
 export const createAlert = async (req, res) => {
   const { alertid, sourceType, severity, timestamp, status, metadata } = req.body;
@@ -21,8 +21,8 @@ export const createAlert = async (req, res) => {
 
     // run after save so the new alert is already in the db when the engine queries historical counts
     try {
-      // Fixed the typo here: overspeedEngin -> overspeedEngine.
-      await overspeedEngine.evaluate(alert);
+      // registry picks the right engine based on sourceType — controller doesn't need to know about individual engines
+      await registry.evaluate(alert);
     } catch (engineErr) {
       // engine failure shouldn't undo a successful ingest — log and move on
       console.error('rule engine error for alert', alert.alertid, engineErr);
