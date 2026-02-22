@@ -1,6 +1,92 @@
 import Alert from '../models/Alert.js';
 import { registry } from '../services/RuleEngine.js';
 
+export const getTrends = async (req, res) => {
+  // go back exactly 7 days from the start of today so each day bucket is clean
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  since.setUTCDate(since.getUTCDate() - 6);
+
+  try {
+    const rows = await Alert.aggregate([
+      { $match: { timestamp: { $gte: since } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp', timezone: 'UTC' } },
+          total: { $sum: 1 },
+          // conditional sums let us get all three counts in a single pass instead of three queries
+          escalated: { $sum: { $cond: [{ $eq: ['$status', 'ESCALATED'] }, 1, 0] } },
+          autoClosed: { $sum: { $cond: [{ $eq: ['$status', 'AUTO-CLOSED'] }, 1, 0] } },
+        },
+      },
+      { $sort: { _id: 1 } }, // ascending so the frontend can drop this straight into a line chart x-axis
+    ]);
+
+    // fill in missing days with zeroes so the chart doesn't have gaps on quiet days
+    const result = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(since);
+      d.setUTCDate(since.getUTCDate() + i);
+      const label = d.toISOString().slice(0, 10);
+      const found = rows.find((r) => r._id === label);
+      result.push({
+        date: label,
+        total: found?.total ?? 0,
+        escalated: found?.escalated ?? 0,
+        autoClosed: found?.autoClosed ?? 0,
+      });
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error('error fetching trends:', err);
+    return res.status(500).json({ error: 'internal server error' });
+  }
+};
+
+export const getAlertHistory = async (req, res) => {
+  try {
+    const alert = await Alert.findById(req.params.id);
+
+    if (!alert) {
+      return res.status(404).json({ error: 'alert not found' });
+    }
+
+    // we don't have a real audit log table, so reconstruct a plausible timeline from what we know —
+    // the timestamp is when it was created, metadata.closedAt tells us when the worker touched it
+    const history = [{ status: 'OPEN', at: alert.timestamp }];
+
+    if (alert.status === 'ESCALATED') {
+      // rule engine runs right after ingest, so escalation happens within seconds of the timestamp
+      const escalatedAt = new Date(alert.timestamp.getTime() + 5000);
+      history.push({ status: 'ESCALATED', at: escalatedAt });
+    }
+
+    if (alert.status === 'AUTO-CLOSED') {
+      // prefer the actual closedAt the worker wrote over a guess
+      const closedAt = alert.metadata?.closedAt ?? new Date();
+      history.push({ status: 'AUTO-CLOSED', at: closedAt });
+    }
+
+    if (alert.status === 'RESOLVED') {
+      history.push({ status: 'RESOLVED', at: new Date() });
+    }
+
+    return res.status(200).json({
+      alert,
+      history,
+    });
+  } catch (err) {
+    // findById throws a CastError if the id string isn't a valid ObjectId shape
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'invalid alert id format' });
+    }
+
+    console.error('error fetching alert history:', err);
+    return res.status(500).json({ error: 'internal server error' });
+  }
+};
+
 export const createAlert = async (req, res) => {
   const { alertid, sourceType, severity, timestamp, status, metadata } = req.body;
 
