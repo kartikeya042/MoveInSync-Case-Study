@@ -1,4 +1,5 @@
 import Alert from '../models/Alert.js';
+import { overspeedEngine } from '../services/RuleEngine.js';
 
 export const createAlert = async (req, res) => {
   const { alertid, sourceType, severity, timestamp, status, metadata } = req.body;
@@ -15,12 +16,17 @@ export const createAlert = async (req, res) => {
 
   try {
     const alert = new Alert({ alertid, sourceType, severity, timestamp: ts, status, metadata });
-    await alert.save();
+    alert.save();
 
-    // TODO: trigger rule engine here
-    // like ruleEngine.evaluate(alert)
+    // run after save so the new alert is already in the db when the engine queries historical counts
+    try {
+      await overspeedEngin.evaluate(alert);
+    } catch (engineErr) {
+      // engine failure shouldn't undo a successful ingest — log and move on
+      console.error('rule engine error for alert', alert.alertid, engineErr);
+    }
 
-    return res.status(201).json({ message: 'alert ingested', id: alert._id });
+    return res.status(201).json({ message: 'alert ingested', id: alert._id, status: alert.status });
   } catch (err) {
     if (err.code === 11000) {
       // duplicate alertid — same alert being sent twice
