@@ -1,6 +1,7 @@
 {
   "overspeed": {
     "escalate_if_count": 3,
-    "window_mins": 60
+    "window_mins": 60,
+    "auto_close_mins": 120
   }
 }

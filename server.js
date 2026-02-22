@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import 'dotenv/config';
 import alertRoutes from './routes/alertRoutes.js';
+import { startAutoCloseWorker } from './jobs/autoCloseWorker.js';
 
 const app = express();
 app.use(express.json());
@@ -18,6 +19,8 @@ mongoose
     app.listen(PORT, () => {
       console.log(`server running on port ${PORT}`);
     });
+    // start after db is ready — the worker queries on startup, so mongoose must be connected first.
+    startAutoCloseWorker();
   })
   .catch((err) => {
     console.error('mongodb connection failed:', err);
