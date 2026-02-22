@@ -16,11 +16,13 @@ export const createAlert = async (req, res) => {
 
   try {
     const alert = new Alert({ alertid, sourceType, severity, timestamp: ts, status, metadata });
-    alert.save();
+    // added await so that the alert is saved here before the rule engine tries to evaluate it.
+    await alert.save();
 
     // run after save so the new alert is already in the db when the engine queries historical counts
     try {
-      await overspeedEngin.evaluate(alert);
+      // Fixed the typo here: overspeedEngin -> overspeedEngine.
+      await overspeedEngine.evaluate(alert);
     } catch (engineErr) {
       // engine failure shouldn't undo a successful ingest — log and move on
       console.error('rule engine error for alert', alert.alertid, engineErr);
