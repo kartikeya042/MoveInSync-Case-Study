@@ -2,11 +2,13 @@ import express from 'express';
 import mongoose from 'mongoose';
 import 'dotenv/config';
 import alertRoutes from './routes/alertRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 import { startAutoCloseWorker } from './jobs/autoCloseWorker.js';
 
 const app = express();
 app.use(express.json());
 
+app.use('/api/auth', authRoutes);
 app.use('/api/alerts', alertRoutes);
 
 const PORT = process.env.PORT || 3000;

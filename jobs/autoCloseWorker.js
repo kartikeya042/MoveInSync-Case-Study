@@ -20,6 +20,9 @@ const runAutoClose = async () => {
 
   for (const candidate of candidates) {
     const rule = rules[candidate.sourceType];
+    
+    // Testing:
+    // console.log(`checking ${candidate.alertid} | sourceType: ${candidate.sourceType} | status: ${candidate.status} | rule: ${JSON.stringify(rule)}`);
 
     // no policy for this sourceType — don't make assumptions about when it should close
     if (!rule) continue;
@@ -30,6 +33,9 @@ const runAutoClose = async () => {
     if (rule.auto_close_mins) {
       const thresholdMs = rule.auto_close_mins * 60 * 1000;
       const ageMs = now - new Date(candidate.timestamp).getTime();
+    
+    // Testing:
+    //   console.log(`  ageMs: ${ageMs} | thresholdMs: ${thresholdMs} | old enough: ${ageMs >= thresholdMs}`);
 
       if (ageMs >= thresholdMs) {
         shouldClose = true;
