@@ -1,5 +1,10 @@
 import Alert from '../models/Alert.js';
 import { registry } from '../services/RuleEngine.js';
+import { get as cacheGet, set as cacheSet, invalidate } from '../services/cache.js';
+
+// Cache key constants — kept here so invalidation calls always use the same strings
+const CACHE_SUMMARY = 'summary';
+const CACHE_TRENDS  = 'trends';
 
 export const getAlerts = async (req, res) => {
   const { status, severity, since, limit = 50 } = req.query;
@@ -25,6 +30,10 @@ export const getAlerts = async (req, res) => {
 };
 
 export const getSummary = async (req, res) => {
+  // serve from cache when possible — two aggregations on every dashboard refresh is expensive
+  const cached = cacheGet(CACHE_SUMMARY);
+  if (cached) return res.status(200).json(cached);
+
   try {
     const [bySeverity, topDrivers] = await Promise.all([
       // group by severity so the frontend can render a breakdown card without a second query
@@ -43,7 +52,9 @@ export const getSummary = async (req, res) => {
       ]),
     ]);
 
-    return res.status(200).json({ bySeverity, topDrivers });
+    const result = { bySeverity, topDrivers };
+    cacheSet(CACHE_SUMMARY, result, 60); // 60-second TTL — stale by at most a minute
+    return res.status(200).json(result);
   } catch (err) {
     console.error('error fetching summary:', err);
     return res.status(500).json({ error: 'internal server error' });
@@ -60,6 +71,9 @@ export const resolveAlert = async (req, res) => {
 
     if (!alert) return res.status(404).json({ error: 'alert not found' });
 
+    // a resolved alert changes severity counts and the leaderboard, so both caches are now stale
+    invalidate([CACHE_SUMMARY, CACHE_TRENDS]);
+
     // write who resolved it so there's a trail — req.user comes from the JWT middleware
     return res.status(200).json({ message: 'alert resolved', alert });
   } catch (err) {
@@ -70,6 +84,10 @@ export const resolveAlert = async (req, res) => {
 };
 
 export const getTrends = async (req, res) => {
+  // trends data changes only when new alerts arrive, so a 5-minute cache is safe
+  const cached = cacheGet(CACHE_TRENDS);
+  if (cached) return res.status(200).json(cached);
+
   // go back exactly 7 days from the start of today so each day bucket is clean
   const since = new Date();
   since.setUTCHours(0, 0, 0, 0);
@@ -105,6 +123,7 @@ export const getTrends = async (req, res) => {
       });
     }
 
+    cacheSet(CACHE_TRENDS, result, 300); // 5-minute TTL — fine-grained enough for near-real-time charts
     return res.status(200).json(result);
   } catch (err) {
     console.error('error fetching trends:', err);
@@ -181,6 +200,9 @@ export const createAlert = async (req, res) => {
       // engine failure shouldn't undo a successful ingest — log and move on
       console.error('rule engine error for alert', alert.alertid, engineErr);
     }
+
+    // a new alert changes counts and trends, so cached aggregations are now stale
+    invalidate([CACHE_SUMMARY, CACHE_TRENDS]);
 
     return res.status(201).json({ message: 'alert ingested', id: alert._id, status: alert.status });
   } catch (err) {

@@ -18,10 +18,11 @@ export const register = async (req, res) => {
   }
 
   try {
+    const normalizedEmail = email.toLowerCase().trim(); // normalize so "User@X.com" and "user@x.com" can't become two separate accounts
     const hashed = await bcrypt.hash(password, SALT_ROUNDS);
     // hash before save so the plaintext never touches the db, even in the same tick
 
-    const user = new User({ email, password: hashed, role });
+    const user = new User({ email: normalizedEmail, password: hashed, role });
     await user.save();
 
     return res.status(201).json({ message: 'user registered', email: user.email, role: user.role });
@@ -48,7 +49,7 @@ export const login = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({ email: email.toLowerCase().trim() }); // normalize before lookup so login works regardless of how the user typed their email
 
     if (!user) {
       // return the same message as a wrong password — don't confirm whether the email exists

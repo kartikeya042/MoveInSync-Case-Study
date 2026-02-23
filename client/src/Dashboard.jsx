@@ -47,6 +47,7 @@ export default function Dashboard() {
 
   const [summary, setSummary] = useState({ bySeverity: [], topDrivers: [] });
   const [trends, setTrends] = useState([]);
+  const [recentAlerts, setRecentAlerts] = useState([]);
   const [autoClosedAlerts, setAutoClosedAlerts] = useState([]);
   const [rulesConfig, setRulesConfig] = useState(null);
 
@@ -58,6 +59,7 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [showAllRecent, setShowAllRecent] = useState(false); // collapsed by default — expand to see full list
 
   const getFilterDate = useCallback(() => {
     const now = new Date();
@@ -71,14 +73,16 @@ export default function Dashboard() {
       // fire all four requests in parallel — the page would feel sluggish loading section by section
       setLoading(true);
       try {
-        const [summaryData, trendsData, closedAlerts, rules] = await Promise.all([
+        const [summaryData, trendsData, recent, closedAlerts, rules] = await Promise.all([
           api('/api/alerts/summary', {}, tok),
           api('/api/alerts/trends', {}, tok),
+          api('/api/alerts?limit=20', {}, tok),
           api(`/api/alerts?status=AUTO-CLOSED&since=${getFilterDate()}&limit=20`, {}, tok),
           api('/api/rules/config', {}, tok),
         ]);
         setSummary(summaryData);
         setTrends(trendsData);
+        setRecentAlerts(recent);
         setAutoClosedAlerts(closedAlerts);
         setRulesConfig(rules);
       } catch (err) {
@@ -122,6 +126,7 @@ export default function Dashboard() {
     // wipe state so re-login shows a clean slate
     setSummary({ bySeverity: [], topDrivers: [] });
     setTrends([]);
+    setRecentAlerts([]);
     setAutoClosedAlerts([]);
     setRulesConfig(null);
   };
@@ -316,6 +321,60 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* recent alert lifecycle events */}
+        <section className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h2 className="text-xs text-gray-500 mb-4 uppercase tracking-widest">recent alert activity</h2>
+          {recentAlerts.length > 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
+                      <th className="pb-2 pr-6 font-normal">alert id</th>
+                      <th className="pb-2 pr-6 font-normal">source type</th>
+                      <th className="pb-2 pr-6 font-normal">severity</th>
+                      <th className="pb-2 pr-6 font-normal">state</th>
+                      <th className="pb-2 font-normal">timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* show 5 rows by default; expand to all 20 when showAllRecent is true */}
+                    {(showAllRecent ? recentAlerts : recentAlerts.slice(0, 5)).map((a) => (
+                      <tr
+                        key={a._id}
+                        className="border-b border-gray-800 hover:bg-gray-800/60 cursor-pointer transition-colors"
+                        onClick={() => openDrillDown(a)}
+                      >
+                        <td className="py-2.5 pr-6 font-mono text-indigo-400 text-xs">{a.alertid}</td>
+                        <td className="py-2.5 pr-6 text-gray-300">{a.sourceType}</td>
+                        <td className={`py-2.5 pr-6 ${severityTextClass[a.severity] || 'text-gray-300'}`}>
+                          {a.severity}
+                        </td>
+                        <td className="py-2.5 pr-6">
+                          <span className={statusBadgeClass(a.status)}>{a.status}</span>
+                        </td>
+                        <td className="py-2.5 text-gray-400 text-xs">
+                          {new Date(a.timestamp).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {recentAlerts.length > 5 && (
+                <button
+                  onClick={() => setShowAllRecent((v) => !v)}
+                  className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {showAllRecent ? 'show less' : `show all ${recentAlerts.length} alerts`}
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 py-4 text-center">no alerts ingested yet</p>
+          )}
+        </section>
 
         {/* auto-closed alerts table with time filter */}
         <section className="bg-gray-900 border border-gray-800 rounded-xl p-5">
