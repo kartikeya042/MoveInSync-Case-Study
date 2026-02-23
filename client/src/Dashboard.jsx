@@ -7,10 +7,12 @@ import {
 // ─── shared helpers ────────────────────────────────────────────────────────────
 
 // single fetch wrapper — attaches auth header and throws on non-ok responses
+// VITE_API_URL is empty in dev (vite proxy handles it) and set to the render url in production
+const BASE = import.meta.env.VITE_API_URL ?? '';
 const api = async (path, options = {}, token = null) => {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(BASE + path, { ...options, headers });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'request failed');
   return data;

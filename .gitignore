@@ -1,3 +1,16 @@
+# dependencies
 node_modules/
+
+# env files — real values go in render/vercel dashboards, not in git
 .env
+.env.*
+!.env.example
+
+# build output
+dist/
+build/
+
+# misc
+.DS_Store
+*.log
 Intelligent Alert Escalation & Resolution System.pdf

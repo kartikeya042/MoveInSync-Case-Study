@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import mongoose from 'mongoose';
 import 'dotenv/config';
 import alertRoutes from './routes/alertRoutes.js';
@@ -7,6 +8,9 @@ import rulesRoutes from './routes/rulesRoutes.js';
 import { startAutoCloseWorker } from './jobs/autoCloseWorker.js';
 
 const app = express();
+
+// allow the frontend origin — set CORS_ORIGIN in the render env vars to your vercel url
+app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

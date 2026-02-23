@@ -1,4 +1,4 @@
-# Logs
+# logs
 logs
 *.log
 npm-debug.log*
@@ -7,12 +7,17 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# dependencies and build output
 node_modules
 dist
 dist-ssr
-*.local
 
-# Editor directories and files
+# env files — set these in the vercel dashboard, not in git
+.env
+.env.*
+!.env.example
+
+# editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
