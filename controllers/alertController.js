@@ -1,6 +1,74 @@
 import Alert from '../models/Alert.js';
 import { registry } from '../services/RuleEngine.js';
 
+export const getAlerts = async (req, res) => {
+  const { status, severity, since, limit = 50 } = req.query;
+
+  // build the filter dynamically so callers can mix and match query params
+  const filter = {};
+  if (status) filter.status = status;
+  if (severity) filter.severity = severity;
+  if (since) {
+    const sinceDate = new Date(since);
+    if (!isNaN(sinceDate.getTime())) filter.timestamp = { $gte: sinceDate };
+  }
+
+  try {
+    const alerts = await Alert.find(filter)
+      .sort({ timestamp: -1 }) // newest first so the dashboard shows recent activity at the top
+      .limit(Number(limit));
+    return res.status(200).json(alerts);
+  } catch (err) {
+    console.error('error fetching alerts:', err);
+    return res.status(500).json({ error: 'internal server error' });
+  }
+};
+
+export const getSummary = async (req, res) => {
+  try {
+    const [bySeverity, topDrivers] = await Promise.all([
+      // group by severity so the frontend can render a breakdown card without a second query
+      Alert.aggregate([
+        { $group: { _id: '$severity', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+
+      // top offenders live in metadata.driverId — pull and rank them
+      Alert.aggregate([
+        { $match: { 'metadata.driverId': { $exists: true, $ne: null } } },
+        { $group: { _id: '$metadata.driverId', alertCount: { $sum: 1 } } },
+        { $sort: { alertCount: -1 } },
+        { $limit: 5 },
+        { $project: { _id: 0, driverId: '$_id', alertCount: 1 } },
+      ]),
+    ]);
+
+    return res.status(200).json({ bySeverity, topDrivers });
+  } catch (err) {
+    console.error('error fetching summary:', err);
+    return res.status(500).json({ error: 'internal server error' });
+  }
+};
+
+export const resolveAlert = async (req, res) => {
+  try {
+    const alert = await Alert.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: 'RESOLVED', 'metadata.resolvedAt': new Date(), 'metadata.resolvedBy': req.user.email } },
+      { new: true }
+    );
+
+    if (!alert) return res.status(404).json({ error: 'alert not found' });
+
+    // write who resolved it so there's a trail — req.user comes from the JWT middleware
+    return res.status(200).json({ message: 'alert resolved', alert });
+  } catch (err) {
+    if (err.name === 'CastError') return res.status(400).json({ error: 'invalid alert id format' });
+    console.error('error resolving alert:', err);
+    return res.status(500).json({ error: 'internal server error' });
+  }
+};
+
 export const getTrends = async (req, res) => {
   // go back exactly 7 days from the start of today so each day bucket is clean
   const since = new Date();
