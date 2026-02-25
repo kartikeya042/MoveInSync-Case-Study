@@ -89,7 +89,7 @@ class FeedbackRuleEngine extends RuleEngine {
 class ComplianceRuleEngine extends RuleEngine {
   constructor() {
     super(rules);
-  }
+  } 
 
   async evaluate(alert) {
     if (alert.sourceType !== 'compliance') return;
@@ -100,8 +100,7 @@ class ComplianceRuleEngine extends RuleEngine {
     const rule = this.rules['compliance'];
     if (!rule || !rule.auto_close_if) return;
 
-    // the rule names the metadata key to check, so adding new close conditions
-    // is just a rules.json change, not a code change
+    // the rule names the metadata key to check, so adding new close conditions is just a rules.json change, not a code change
     const metaKey = rule.auto_close_if;
     if (alert.metadata?.[metaKey] === true) {
       alert.status = 'AUTO-CLOSED';
