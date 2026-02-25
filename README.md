@@ -10,7 +10,6 @@ A full-stack alert management platform built as a 48-hour take-home case study f
 |---|---|
 | **Dashboard (Vercel)** | https://move-in-sync-case-study.vercel.app/ |
 | **Backend API (Render)** | https://moveinsync-case-study-yx05.onrender.com |
-| **Video Walkthrough** | [INSERT_YOUR_VIDEO_LINK_HERE] |
 
 > **Note:** The backend is hosted on Render's free tier. The first request after inactivity may take up to **45 seconds** to wake the server. Subsequent requests are fast.
 
