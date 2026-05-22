@@ -88,12 +88,18 @@ export const getTrends = async (req, res) => {
   const cached = cacheGet(CACHE_TRENDS);
   if (cached) return res.status(200).json(cached);
 
-  // go back exactly 7 days from the start of today so each day bucket is clean
-  const since = new Date();
-  since.setUTCHours(0, 0, 0, 0);
-  since.setUTCDate(since.getUTCDate() - 6);
-
   try {
+    // Anchor the window to the newest known alert day so a slightly stale server clock
+    // does not hide the most recent bucket from the chart.
+    const latest = await Alert.findOne({}, { timestamp: 1 }).sort({ timestamp: -1 }).lean();
+
+    const end = new Date(Math.max(Date.now(), latest?.timestamp?.getTime() ?? 0));
+    end.setUTCHours(0, 0, 0, 0);
+
+    // go back exactly 7 calendar days from the chosen end day so each bucket stays clean
+    const since = new Date(end);
+    since.setUTCDate(since.getUTCDate() - 6);
+
     const rows = await Alert.aggregate([
       { $match: { timestamp: { $gte: since } } },
       {

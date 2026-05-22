@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Alert from '../models/Alert.js';
+import { invalidate } from '../services/cache.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -17,6 +18,7 @@ const runAutoClose = async () => {
   if (candidates.length === 0) return;
 
   const now = Date.now();
+  let closedAny = false;
 
   for (const candidate of candidates) {
     const rule = rules[candidate.sourceType];
@@ -70,7 +72,13 @@ const runAutoClose = async () => {
     // updated is null if another tick already closed this one — nothing to log
     if (updated) {
       console.log(`auto-closed alert ${updated.alertid} — ${closureNote}`);
+      closedAny = true;
     }
+  }
+
+  if (closedAny) {
+    // background closures change the same dashboard aggregates as manual updates
+    invalidate(['summary', 'trends']);
   }
 };
 
